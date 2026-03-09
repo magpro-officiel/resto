@@ -1350,12 +1350,37 @@ class RestaurantApp(MDApp):
         dialog.open()
 
     def open_ip_settings(self, instance=None):
-        content = MDBoxLayout(orientation='vertical', spacing='12dp', size_hint_y=None, height='140dp')
+        import webbrowser
+        
+        content = MDBoxLayout(orientation='vertical', spacing='12dp', size_hint_y=None, height='220dp')
+        
         self.ip_field_dialog = MDTextField(text=self.local_server_ip, hint_text='IP Locale', mode='rectangle')
         self.ext_ip_field_dialog = MDTextField(text=self.external_server_ip, hint_text='IP Externe (Optionnel)', mode='rectangle')
+        
         content.add_widget(self.ip_field_dialog)
         content.add_widget(self.ext_ip_field_dialog)
-        self.dialog_ip = MDDialog(title='Configuration Serveur', type='custom', content_cls=content, buttons=[MDFlatButton(text='ANNULER', on_release=lambda x: self.dialog_ip.dismiss()), MDRaisedButton(text='ENREGISTRER', on_release=self.save_ip_settings)])
+
+        content.add_widget(MDBoxLayout(size_hint_y=None, height='5dp')) 
+        
+        btn_update = MDFillRoundFlatIconButton(
+            text="Mise à jour de l'application",
+            icon="cloud-download",
+            md_bg_color=(0, 0.6, 0.8, 1), 
+            text_color=(1, 1, 1, 1),
+            size_hint_x=1,
+            on_release=lambda x: [self.dialog_ip.dismiss(), webbrowser.open('https://rhseifeddine.github.io/MagPro-Resto/')]
+        )
+        content.add_widget(btn_update)
+
+        self.dialog_ip = MDDialog(
+            title='Configuration Serveur', 
+            type='custom', 
+            content_cls=content, 
+            buttons=[
+                MDFlatButton(text='ANNULER', on_release=lambda x: self.dialog_ip.dismiss()), 
+                MDRaisedButton(text='ENREGISTRER', on_release=self.save_ip_settings)
+            ]
+        )
         self.dialog_ip.open()
 
     def save_ip_settings(self, instance):
