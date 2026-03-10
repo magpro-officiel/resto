@@ -1368,7 +1368,7 @@ class RestaurantApp(MDApp):
             md_bg_color=(0, 0.6, 0.8, 1), 
             text_color=(1, 1, 1, 1),
             size_hint_x=1,
-            on_release=lambda x: [self.dialog_ip.dismiss(), webbrowser.open('https://rhseifeddine.github.io/MagPro-Resto/')]
+            on_release=lambda x: [self.dialog_ip.dismiss(), webbrowser.open('https://magpro-officiel.github.io/resto/')]
         )
         content.add_widget(btn_update)
 
