@@ -827,7 +827,7 @@ class RestaurantApp(MDApp):
         card_login.add_widget(MDBoxLayout(size_hint_y=None, height=dp(10)))
         card_login.add_widget(btn_login)
         background_layout.add_widget(card_login)
-        footer = MDLabel(text='MagPro v7.1.0 © 2026', halign='center', pos_hint={'bottom': 1, 'center_x': 0.5}, theme_text_color='Hint', font_style='Caption', size_hint_y=None, height=dp(30))
+        footer = MDLabel(text='MagPro v7.3.0 © 2026', halign='center', pos_hint={'bottom': 1, 'center_x': 0.5}, theme_text_color='Hint', font_style='Caption', size_hint_y=None, height=dp(30))
         background_layout.add_widget(footer)
         screen_login.add_widget(background_layout)
         self.screen_manager.add_widget(screen_login)
@@ -1368,7 +1368,7 @@ class RestaurantApp(MDApp):
             md_bg_color=(0, 0.6, 0.8, 1), 
             text_color=(1, 1, 1, 1),
             size_hint_x=1,
-            on_release=lambda x: [self.dialog_ip.dismiss(), webbrowser.open('https://magpro-officiel.github.io/resto/')]
+            on_release=lambda x: [self.dialog_ip.dismiss(), webbrowser.open('https://resto.magpro-soft.com/')]
         )
         content.add_widget(btn_update)
 
