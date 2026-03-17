@@ -243,8 +243,14 @@ class WebSocketManager:
 
         def _run():
             while self.should_reconnect:
+                import re
+                import time
                 current_ip = self.server_ip
-                ws_url = f'ws://{current_ip}:{self.port}/ws'
+                if re.search('[a-zA-Z]', current_ip):
+                    clean_host = current_ip.replace('https://', '').replace('http://', '').strip('/')
+                    ws_url = f'wss://{clean_host}/ws'
+                else:
+                    ws_url = f'ws://{current_ip}:{self.port}/ws'
                 try:
                     self.ws = websocket.WebSocketApp(ws_url, on_open=self._on_open, on_message=self._on_message, on_error=self._on_error, on_close=self._on_close)
                     self.ws.run_forever(ping_interval=30, ping_timeout=15)
@@ -580,6 +586,15 @@ class RestaurantApp(MDApp):
     data_dir = ''
     rv_products = None
 
+    @property
+    def api_base(self):
+        import re
+        ip_to_use = getattr(self, 'active_server_ip', self.server_ip)
+        if re.search('[a-zA-Z]', ip_to_use):
+            clean_host = ip_to_use.replace('https://', '').replace('http://', '').strip('/')
+            return f'https://{clean_host}'
+        return f'http://{ip_to_use}:{DEFAULT_PORT}'
+
     def fix_text(self, text):
         if not text:
             return ''
@@ -691,46 +706,50 @@ class RestaurantApp(MDApp):
 
     def _run_socket_ping_logic(self):
         success = False
-        target_ip = self.local_server_ip
         final_ip = None
         duration = 0
-        sock = None
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(5.0)
-            start_t = time.time()
-            result = sock.connect_ex((target_ip, int(DEFAULT_PORT)))
-            if result == 0:
-                duration = (time.time() - start_t) * 1000
-                success = True
-                final_ip = target_ip
-            sock.close()
-        except:
-            if sock:
-                sock.close()
-        if not success and self.external_server_ip:
-            target_ip = self.external_server_ip
+
+        def ping_host(ip_address):
+            if not ip_address:
+                return (False, 0)
             try:
+                import re
+                import socket
+                import time
+                if re.search('[a-zA-Z]', ip_address):
+                    host = ip_address.replace('https://', '').replace('http://', '').split('/')[0]
+                    port = 443
+                else:
+                    host = ip_address
+                    port = int(DEFAULT_PORT)
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(10.0)
+                sock.settimeout(5.0)
                 start_t = time.time()
-                result = sock.connect_ex((target_ip, int(DEFAULT_PORT)))
-                if result == 0:
-                    duration = (time.time() - start_t) * 1000
-                    success = True
-                    final_ip = target_ip
+                result = sock.connect_ex((host, port))
                 sock.close()
+                if result == 0:
+                    return (True, (time.time() - start_t) * 1000)
             except:
-                if sock:
-                    sock.close()
+                pass
+            return (False, 0)
+        success, duration = ping_host(self.local_server_ip)
+        if success:
+            final_ip = self.local_server_ip
+        elif getattr(self, 'external_server_ip', None):
+            success, duration = ping_host(self.external_server_ip)
+            if success:
+                final_ip = self.external_server_ip
         self.is_server_reachable = success
         if success and final_ip:
-            if self.server_ip != final_ip:
+            if getattr(self, 'server_ip', '') != final_ip or getattr(self, 'active_server_ip', '') != final_ip:
                 self.server_ip = final_ip
                 self.active_server_ip = final_ip
-                if self.ws_manager:
+                if hasattr(self, 'ws_manager') and self.ws_manager:
                     self.ws_manager.server_ip = final_ip
                     self.ws_manager.disconnect()
+                    from kivy.clock import Clock
+                    Clock.schedule_once(lambda dt: self.ws_manager.connect(), 1)
+        from kivy.clock import Clock
         Clock.schedule_once(lambda dt: self.update_status_bar_safe(success, duration, self.server_ip), 0)
 
     def update_status_bar_safe(self, connected, ping_ms, ip_used):
@@ -882,7 +901,7 @@ class RestaurantApp(MDApp):
             self.cache_store.put('categories_list', data=result)
             if hasattr(self, 'btn_category_select'):
                 self.btn_category_select.text = 'TOUS'
-        UrlRequest(f'http://{self.server_ip}:{DEFAULT_PORT}/api/categories', on_success=on_success, timeout=10)
+        UrlRequest(f'{self.api_base}/api/categories', on_success=on_success, timeout=10)
 
     def filter_by_category(self, category):
         self.search_field.text = ''
@@ -933,7 +952,7 @@ class RestaurantApp(MDApp):
             self.is_offline_mode = True
             if not self.cache_store.exists('products'):
                 self.standard_error_handler(req, error, 'Impossible de charger les produits')
-        UrlRequest(f'http://{self.server_ip}:{DEFAULT_PORT}/api/products', on_success=on_success, on_error=on_error, on_failure=on_error, timeout=10)
+        UrlRequest(f'{self.api_base}/api/products', on_success=on_success, on_error=on_error, on_failure=on_error, timeout=10)
         self.fetch_categories()
 
     def open_addons_dialog(self, item, card_widget=None):
@@ -972,7 +991,7 @@ class RestaurantApp(MDApp):
             if not try_offline_lookup():
                 self.notify('Erreur : Connexion requise', 'error')
         encoded_cat = urllib.parse.quote(category_name)
-        url = f'http://{self.server_ip}:{DEFAULT_PORT}/api/addons?product_id={product_id}&category={encoded_cat}'
+        url = f'{self.api_base}/api/addons?product_id={product_id}&category={encoded_cat}'
         UrlRequest(url, on_success=on_success, on_failure=on_error, on_error=on_error, timeout=10)
 
     def _show_addons_popup(self, item, addons_list, card_widget=None):
@@ -1090,7 +1109,7 @@ class RestaurantApp(MDApp):
             full_image_url = ''
             if image_filename:
                 safe_name = urllib.parse.quote(image_filename)
-                real_url = f'http://{self.server_ip}:{DEFAULT_PORT}/api/images/{safe_name}'
+                real_url = f'{self.api_base}/api/images/{safe_name}'
                 cached_path = self.image_cache.get_cache_path(p_id, real_url)
                 if cached_path and os.path.exists(cached_path):
                     full_image_url = cached_path
@@ -1182,10 +1201,10 @@ class RestaurantApp(MDApp):
             return
         data = {'table_id': self.current_table['id'], 'seat_number': self.current_seat, 'user_name': self.current_user_name}
         self.notify('Envoi du rappel en cours...', 'info')
-        UrlRequest(f'http://{self.server_ip}:{DEFAULT_PORT}/api/remind_order', req_body=json.dumps(data), req_headers={'Content-type': 'application/json'}, method='POST', on_success=lambda r, res: self.notify('Rappel envoyé en cuisine avec succès', 'success'), on_failure=lambda r, e: self.notify("Échec de l'envoi du rappel", 'error'), on_error=lambda r, e: self.notify('Erreur de connexion', 'error'), timeout=10)
+        UrlRequest(f'{self.api_base}/api/remind_order', req_body=json.dumps(data), req_headers={'Content-type': 'application/json'}, method='POST', on_success=lambda r, res: self.notify('Rappel envoyé en cuisine avec succès', 'success'), on_failure=lambda r, e: self.notify("Échec de l'envoi du rappel", 'error'), on_error=lambda r, e: self.notify('Erreur de connexion', 'error'), timeout=10)
 
     def initiate_move(self, table_info):
-        UrlRequest(f"http://{self.server_ip}:{DEFAULT_PORT}/api/table_seats/{table_info['id']}", on_success=lambda r, res: self._show_move_options_dialog(table_info, res), on_error=lambda r, e: self.notify('Échec de connexion au serveur', 'error'))
+        UrlRequest(f"{self.api_base}/api/table_seats/{table_info['id']}", on_success=lambda r, res: self._show_move_options_dialog(table_info, res), on_error=lambda r, e: self.notify('Échec de connexion au serveur', 'error'))
 
     def _show_move_options_dialog(self, table_info, occupied_dict):
         if not occupied_dict:
@@ -1269,10 +1288,10 @@ class RestaurantApp(MDApp):
         if dialog:
             dialog.dismiss()
         if source_seat == 0 and target_seat == 0:
-            url = f'http://{self.server_ip}:{DEFAULT_PORT}/api/move_table'
+            url = f'{self.api_base}/api/move_table'
             data = {'source_id': source['id'], 'dest_id': dest['id']}
         else:
-            url = f'http://{self.server_ip}:{DEFAULT_PORT}/api/move_seat'
+            url = f'{self.api_base}/api/move_seat'
             data = {'table_id': source['id'], 'source_seat': source_seat, 'dest_table_id': dest['id'], 'dest_seat': target_seat}
         self.notify('Transfert en cours...', 'info')
         UrlRequest(url, req_body=json.dumps(data), req_headers={'Content-type': 'application/json'}, method='POST', on_success=lambda r, res: self.on_move_success(res), on_failure=lambda r, e: self.notify('Erreur Serveur', 'error'), timeout=10)
@@ -1351,36 +1370,15 @@ class RestaurantApp(MDApp):
 
     def open_ip_settings(self, instance=None):
         import webbrowser
-        
         content = MDBoxLayout(orientation='vertical', spacing='12dp', size_hint_y=None, height='220dp')
-        
         self.ip_field_dialog = MDTextField(text=self.local_server_ip, hint_text='IP Locale', mode='rectangle')
         self.ext_ip_field_dialog = MDTextField(text=self.external_server_ip, hint_text='IP Externe (Optionnel)', mode='rectangle')
-        
         content.add_widget(self.ip_field_dialog)
         content.add_widget(self.ext_ip_field_dialog)
-
-        content.add_widget(MDBoxLayout(size_hint_y=None, height='5dp')) 
-        
-        btn_update = MDFillRoundFlatIconButton(
-            text="Mise à jour de l'application",
-            icon="cloud-download",
-            md_bg_color=(0, 0.6, 0.8, 1), 
-            text_color=(1, 1, 1, 1),
-            size_hint_x=1,
-            on_release=lambda x: [self.dialog_ip.dismiss(), webbrowser.open('https://resto.magpro-soft.com/')]
-        )
+        content.add_widget(MDBoxLayout(size_hint_y=None, height='5dp'))
+        btn_update = MDFillRoundFlatIconButton(text="Mise à jour de l'application", icon='cloud-download', md_bg_color=(0, 0.6, 0.8, 1), text_color=(1, 1, 1, 1), size_hint_x=1, on_release=lambda x: [self.dialog_ip.dismiss(), webbrowser.open('https://resto.magpro-soft.com/')])
         content.add_widget(btn_update)
-
-        self.dialog_ip = MDDialog(
-            title='Configuration Serveur', 
-            type='custom', 
-            content_cls=content, 
-            buttons=[
-                MDFlatButton(text='ANNULER', on_release=lambda x: self.dialog_ip.dismiss()), 
-                MDRaisedButton(text='ENREGISTRER', on_release=self.save_ip_settings)
-            ]
-        )
+        self.dialog_ip = MDDialog(title='Configuration Serveur', type='custom', content_cls=content, buttons=[MDFlatButton(text='ANNULER', on_release=lambda x: self.dialog_ip.dismiss()), MDRaisedButton(text='ENREGISTRER', on_release=self.save_ip_settings)])
         self.dialog_ip.open()
 
     def save_ip_settings(self, instance):
@@ -1407,7 +1405,7 @@ class RestaurantApp(MDApp):
         if not username:
             self.notify("Nom d'utilisateur requis", 'warning')
             return
-        url = f'http://{self.server_ip}:{DEFAULT_PORT}/api/login'
+        url = f'{self.api_base}/api/login'
         headers = {'Content-type': 'application/json'}
         body = json.dumps({'username': username, 'password': password})
         UrlRequest(url, req_body=body, req_headers=headers, method='POST', on_success=self.login_success_handler, on_failure=lambda r, e: self.notify('Identifiants incorrects', 'error'), on_error=lambda r, e: self.standard_error_handler(r, e, 'Serveur de connexion inaccessible.'), timeout=10)
@@ -1465,7 +1463,7 @@ class RestaurantApp(MDApp):
             self.update_tables(req, result)
             self.cache_store.put('tables', data=result)
             self.process_offline_queue()
-        UrlRequest(f'http://{self.server_ip}:{DEFAULT_PORT}/api/tables', on_success=on_success, on_error=lambda r, e: setattr(self, 'request_pending', False), timeout=10)
+        UrlRequest(f'{self.api_base}/api/tables', on_success=on_success, on_error=lambda r, e: setattr(self, 'request_pending', False), timeout=10)
 
     def silent_error(self, req, error):
         self.request_pending = False
@@ -1609,7 +1607,7 @@ class RestaurantApp(MDApp):
         if chair_count == 0:
             self.open_seat_order(0)
             return
-        url = f"http://{self.server_ip}:{DEFAULT_PORT}/api/table_seats/{table['id']}"
+        url = f"{self.api_base}/api/table_seats/{table['id']}"
 
         def on_success(req, res):
             self.cache_store.put(f"seats_{table['id']}", data=res)
@@ -1733,7 +1731,7 @@ class RestaurantApp(MDApp):
             self.on_cart_loaded(None, local_data.get('items', []))
             self.notify('Chargement de la commande Hors Ligne', 'info')
         elif not self.is_offline_mode:
-            UrlRequest(f'http://{self.server_ip}:{DEFAULT_PORT}/api/cart_details', req_body=json.dumps({'table_id': self.current_table['id'], 'seat_number': self.current_seat}), req_headers={'Content-type': 'application/json'}, method='POST', on_success=self.on_cart_loaded, on_error=self.silent_error, timeout=10)
+            UrlRequest(f'{self.api_base}/api/cart_details', req_body=json.dumps({'table_id': self.current_table['id'], 'seat_number': self.current_seat}), req_headers={'Content-type': 'application/json'}, method='POST', on_success=self.on_cart_loaded, on_error=self.silent_error, timeout=10)
         else:
             self.cart = []
 
@@ -1928,7 +1926,7 @@ class RestaurantApp(MDApp):
             self.go_back()
             if self.dialog_cart:
                 self.dialog_cart.dismiss()
-        UrlRequest(f'http://{self.server_ip}:{DEFAULT_PORT}/api/submit_order', req_body=json.dumps(data), req_headers={'Content-type': 'application/json'}, method='POST', on_success=self.on_sent, on_failure=save_offline, on_error=save_offline, timeout=10)
+        UrlRequest(f'{self.api_base}/api/submit_order', req_body=json.dumps(data), req_headers={'Content-type': 'application/json'}, method='POST', on_success=self.on_sent, on_failure=save_offline, on_error=save_offline, timeout=10)
         if self.dialog_cart:
             self.dialog_cart.dismiss()
 
@@ -1976,7 +1974,7 @@ class RestaurantApp(MDApp):
         def on_sync_fail(req, err):
             logging.warning('Sync failed, will try later')
         logging.info(f'Syncing order {key}...')
-        UrlRequest(f'http://{self.server_ip}:{DEFAULT_PORT}/api/submit_order', req_body=json.dumps(order_data), req_headers={'Content-type': 'application/json'}, method='POST', on_success=on_sync_success, on_failure=on_sync_fail, on_error=on_sync_fail, timeout=10)
+        UrlRequest(f'{self.api_base}/api/submit_order', req_body=json.dumps(order_data), req_headers={'Content-type': 'application/json'}, method='POST', on_success=on_sync_success, on_failure=on_sync_fail, on_error=on_sync_fail, timeout=10)
 
     def on_fail(self, req, error):
         self.notify('Le serveur a rejeté la commande', 'error')
