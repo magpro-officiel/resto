@@ -11,6 +11,7 @@ from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.metrics import dp
 from kivy.network.urlrequest import UrlRequest
+from kivy.network.urlrequest import UrlRequest as OriginalUrlRequest
 from kivy.properties import StringProperty, NumericProperty, ObjectProperty, ListProperty, BooleanProperty
 from kivy.resources import resource_find
 from kivy.storage.jsonstore import JsonStore
@@ -96,6 +97,23 @@ DEFAULT_PORT = '5000'
 # ==========================================
 KV_BUILDER = '\n<ProductRecycleItem>:\n    orientation: \'vertical\'\n    size_hint_y: None\n    height: dp(195)  # زيادة بسيطة جداً لاستيعاب الخط الأكبر\n    padding: dp(2)\n    spacing: 0\n    canvas.before:\n        Color:\n            rgba: (0, 0, 0, 0)\n        RoundedRectangle:\n            pos: self.pos\n            size: self.size\n            radius: [12]\n\n    MDBoxLayout:\n        orientation: \'vertical\'\n        md_bg_color: (1, 1, 1, 1)\n        radius: [12]\n        spacing: 0\n        \n        MDRelativeLayout:\n            size_hint_y: 0.70  # توازن مثالي بين الصورة والنص\n            \n            FitImage:\n                id: product_img\n                source: root.image_source\n                radius: [12, 12, 0, 0]\n                mipmap: True\n                opacity: 1 if self.source else 0\n            \n            MDIcon:\n                icon: "food-outline"\n                theme_text_color: "Custom"\n                text_color: (0.9, 0.9, 0.9, 1)\n                font_size: "40sp"\n                pos_hint: {\'center_x\': .5, \'center_y\': .5}\n                opacity: 0.5 if not product_img.source else 0\n\n            MDCard:\n                size_hint: None, None\n                size: dp(75), dp(28)\n                pos_hint: {\'top\': 0.96, \'right\': 0.96}\n                radius: [8]\n                md_bg_color: (1, 0.85, 0, 0.95)\n                elevation: 1\n                MDLabel:\n                    text: root.text_price\n                    halign: \'center\'\n                    bold: True\n                    font_size: "14sp"\n                    font_name: \'ArabicFont\'\n\n        MDBoxLayout:\n            orientation: \'vertical\'\n            size_hint_y: 0.30\n            padding: [dp(4), dp(2), dp(4), dp(4)]\n            \n            MDLabel:\n                text: root.text_name\n                halign: \'center\'\n                valign: \'middle\'\n                bold: True\n                font_size: "17sp"      # تم تكبير الخط هنا\n                line_height: 0.9       # ضبط المسافة بين الأسطر لتناسب الخط الكبير\n                max_lines: 3\n                theme_text_color: "Primary"\n                font_name: \'ArabicFont\'\n                text_size: self.width, self.height\n\n<ProductRecycleView>:\n    viewclass: \'ProductRecycleItem\'\n    RecycleGridLayout:\n        cols: 2\n        default_size: None, dp(195) # يجب أن يطابق ارتفاع الـ Item\n        default_size_hint: 1, None\n        size_hint_y: None\n        height: self.minimum_height\n        spacing: dp(8)\n        padding: dp(8)\n        canvas.before:\n            Color:\n                rgba: (0.92, 0.92, 0.92, 1) \n            Rectangle:\n                pos: self.pos\n                size: self.size\n'
 # ==========================================
+class CustomUrlRequest(OriginalUrlRequest):
+
+    def __init__(self, url, **kwargs):
+        from kivymd.app import MDApp
+        app = MDApp.get_running_app()
+        headers = kwargs.get('req_headers', {})
+        if not headers:
+            headers = {'Content-type': 'application/json'}
+        if app and hasattr(app, 'store') and app.store and app.store.exists('config'):
+            pin = app.store.get('config').get('server_pin', '')
+            if pin:
+                headers['X-Server-PIN'] = str(pin)
+        kwargs['req_headers'] = headers
+        super().__init__(url, **kwargs)
+
+UrlRequest = CustomUrlRequest
+
 class NoMenuTextField(MDTextField):
 
     def _show_cut_copy_paste(self, pos, selection, mode=None):
@@ -242,6 +260,7 @@ class WebSocketManager:
             return False
 
         def _run():
+            from kivymd.app import MDApp
             while self.should_reconnect:
                 import re
                 import time
@@ -251,8 +270,14 @@ class WebSocketManager:
                     ws_url = f'wss://{clean_host}/ws'
                 else:
                     ws_url = f'ws://{current_ip}:{self.port}/ws'
+                app = MDApp.get_running_app()
+                ws_header = []
+                if app and hasattr(app, 'store') and app.store and app.store.exists('config'):
+                    pin = app.store.get('config').get('server_pin', '')
+                    if pin:
+                        ws_header.append(f'X-Server-PIN: {pin}')
                 try:
-                    self.ws = websocket.WebSocketApp(ws_url, on_open=self._on_open, on_message=self._on_message, on_error=self._on_error, on_close=self._on_close)
+                    self.ws = websocket.WebSocketApp(ws_url, header=ws_header, on_open=self._on_open, on_message=self._on_message, on_error=self._on_error, on_close=self._on_close)
                     self.ws.run_forever(ping_interval=30, ping_timeout=15)
                     if self.should_reconnect:
                         time.sleep(self.reconnect_delay)
@@ -521,7 +546,13 @@ class TableCard(MDCard):
     def _handle_normal_tap(self):
         is_calling = self.table.get('is_calling', 0) == 1 or self.table.get('is_calling_waiter', 0) == 1
         if is_calling:
-            UrlRequest(f'http://{self.app.server_ip}:5000/api/call_waiter', req_body=json.dumps({'table_id': self.table['id'], 'action': 'reset'}), req_headers={'Content-type': 'application/json'}, method='POST', on_success=lambda req, res: self.app.fetch_tables(manual=False))
+            url = f'{self.app.api_base}/api/call_waiter'
+            payload = {'table_id': self.table['id'], 'action': 'reset'}
+
+            def on_success(req, res):
+                self.app.notify('Appel serveur annulé', 'success')
+                self.app.fetch_tables(manual=False)
+            UrlRequest(url, req_body=json.dumps(payload), req_headers={'Content-type': 'application/json'}, method='POST', on_success=on_success, on_failure=lambda r, e: self.app.notify("Erreur d'annulation", 'error'), on_error=lambda r, e: self.app.notify('Erreur réseau', 'error'))
             self.table['is_calling'] = 0
             self.table['is_calling_waiter'] = 0
             self.update_state(self.table)
@@ -701,56 +732,63 @@ class RestaurantApp(MDApp):
 
     def check_server_heartbeat(self):
         while not self.stop_heartbeat:
-            self._run_socket_ping_logic()
-            time.sleep(3)
+            from kivy.clock import Clock
+            Clock.schedule_once(lambda dt: self._run_socket_ping_logic(), 0)
+            time.sleep(5)
 
     def _run_socket_ping_logic(self):
-        success = False
-        final_ip = None
-        duration = 0
+        self._ping_local()
 
-        def ping_host(ip_address):
-            if not ip_address:
-                return (False, 0)
-            try:
-                import re
-                import socket
-                import time
-                if re.search('[a-zA-Z]', ip_address):
-                    host = ip_address.replace('https://', '').replace('http://', '').split('/')[0]
-                    port = 443
-                else:
-                    host = ip_address
-                    port = int(DEFAULT_PORT)
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(5.0)
-                start_t = time.time()
-                result = sock.connect_ex((host, port))
-                sock.close()
-                if result == 0:
-                    return (True, (time.time() - start_t) * 1000)
-            except:
-                pass
-            return (False, 0)
-        success, duration = ping_host(self.local_server_ip)
-        if success:
-            final_ip = self.local_server_ip
-        elif getattr(self, 'external_server_ip', None):
-            success, duration = ping_host(self.external_server_ip)
-            if success:
-                final_ip = self.external_server_ip
+    def _ping_local(self):
+        if not self.local_server_ip:
+            self._ping_external()
+            return
+        url = f'http://{self.local_server_ip}:{DEFAULT_PORT}/api/ping'
+        start_time = time.time()
+
+        def on_success(req, res):
+            ping_val = int((time.time() - start_time) * 1000)
+            self._finalize_ping_ui(True, ping_val, self.local_server_ip)
+
+        def on_fail_or_error(req, err):
+            self._ping_external()
+        UrlRequest(url, on_success=on_success, on_failure=on_fail_or_error, on_error=on_fail_or_error, timeout=2)
+
+    def _ping_external(self):
+        if not self.external_server_ip:
+            self._finalize_ping_ui(False, 0, None)
+            return
+        import re
+        if re.search('[a-zA-Z]', self.external_server_ip):
+            clean_host = self.external_server_ip.replace('https://', '').replace('http://', '').strip('/')
+            url = f'https://{clean_host}/api/ping'
+        else:
+            url = f'http://{self.external_server_ip}:{DEFAULT_PORT}/api/ping'
+        start_time = time.time()
+
+        def on_success(req, res):
+            ping_val = int((time.time() - start_time) * 1000)
+            self._finalize_ping_ui(True, ping_val, self.external_server_ip)
+
+        def on_fail_or_error(req, err):
+            if req.resp_status == 403:
+                self.notify('Code PIN du Serveur Incorrect!', 'error')
+            self._finalize_ping_ui(False, 0, None)
+        UrlRequest(url, on_success=on_success, on_failure=on_fail_or_error, on_error=on_fail_or_error, timeout=4)
+
+    def _finalize_ping_ui(self, success, ping_val, confirmed_ip):
         self.is_server_reachable = success
-        if success and final_ip:
-            if getattr(self, 'server_ip', '') != final_ip or getattr(self, 'active_server_ip', '') != final_ip:
-                self.server_ip = final_ip
-                self.active_server_ip = final_ip
+        if success and confirmed_ip:
+            if getattr(self, 'server_ip', '') != confirmed_ip or getattr(self, 'active_server_ip', '') != confirmed_ip:
+                self.server_ip = confirmed_ip
+                self.active_server_ip = confirmed_ip
                 if hasattr(self, 'ws_manager') and self.ws_manager:
-                    self.ws_manager.server_ip = final_ip
+                    self.ws_manager.server_ip = confirmed_ip
                     self.ws_manager.disconnect()
                     from kivy.clock import Clock
                     Clock.schedule_once(lambda dt: self.ws_manager.connect(), 1)
         from kivy.clock import Clock
-        Clock.schedule_once(lambda dt: self.update_status_bar_safe(success, duration, self.server_ip), 0)
+        Clock.schedule_once(lambda dt: self.update_status_bar_safe(success, ping_val, self.server_ip), 0)
 
     def update_status_bar_safe(self, connected, ping_ms, ip_used):
         if not self.status_bar_label:
@@ -952,7 +990,8 @@ class RestaurantApp(MDApp):
             self.is_offline_mode = True
             if not self.cache_store.exists('products'):
                 self.standard_error_handler(req, error, 'Impossible de charger les produits')
-        UrlRequest(f'{self.api_base}/api/products', on_success=on_success, on_error=on_error, on_failure=on_error, timeout=10)
+        url = f'{self.api_base}/api/products?limit=999999'
+        UrlRequest(url, on_success=on_success, on_error=on_error, on_failure=on_error, timeout=10)
         self.fetch_categories()
 
     def open_addons_dialog(self, item, card_widget=None):
@@ -1130,7 +1169,12 @@ class RestaurantApp(MDApp):
                 Clock.schedule_once(lambda dt: self._update_image_on_ui(product_id, final_path), 0)
                 return
             temp_path = final_path + '.tmp'
-            req = urllib.request.Request(url, headers={'User-Agent': 'MagPro-App'})
+            headers = {'User-Agent': 'MagPro-App'}
+            if self.store.exists('config'):
+                pin = self.store.get('config').get('server_pin', '')
+                if pin:
+                    headers['X-Server-PIN'] = str(pin)
+            req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=15) as response:
                 if response.status == 200:
                     with open(temp_path, 'wb') as f:
@@ -1370,33 +1414,54 @@ class RestaurantApp(MDApp):
 
     def open_ip_settings(self, instance=None):
         import webbrowser
-        content = MDBoxLayout(orientation='vertical', spacing='12dp', size_hint_y=None, height='220dp')
-        self.ip_field_dialog = MDTextField(text=self.local_server_ip, hint_text='IP Locale', mode='rectangle')
-        self.ext_ip_field_dialog = MDTextField(text=self.external_server_ip, hint_text='IP Externe (Optionnel)', mode='rectangle')
+        if hasattr(self, 'dialog_ip') and getattr(self, 'dialog_ip', None):
+            self.dialog_ip.dismiss()
+        content = MDBoxLayout(orientation='vertical', spacing='15dp', size_hint_y=None, height='280dp', padding=[0, dp(10), 0, 0])
+        saved_pin = ''
+        if self.store.exists('config'):
+            saved_pin = str(self.store.get('config').get('server_pin', ''))
+        self.ip_field_dialog = MDTextField(text=self.local_server_ip, hint_text='IP Locale (Wifi)', mode='rectangle', icon_right='router-wireless')
+        self.ext_ip_field_dialog = MDTextField(text=self.external_server_ip, hint_text='IP Externe (Internet)', mode='rectangle', icon_right='web')
+        self.field_server_pin = MDTextField(text=saved_pin, hint_text='Code PIN du Serveur (Cloudflare)', mode='rectangle', icon_right='lock-outline', password=True)
         content.add_widget(self.ip_field_dialog)
         content.add_widget(self.ext_ip_field_dialog)
+        content.add_widget(self.field_server_pin)
+
+        def on_ext_ip_change(instance, text):
+            import re
+            if re.search('[a-zA-Z]', text):
+                self.field_server_pin.opacity = 1
+                self.field_server_pin.disabled = False
+            else:
+                self.field_server_pin.opacity = 0
+                self.field_server_pin.disabled = True
+        self.ext_ip_field_dialog.bind(text=on_ext_ip_change)
+        on_ext_ip_change(self.ext_ip_field_dialog, self.ext_ip_field_dialog.text)
         content.add_widget(MDBoxLayout(size_hint_y=None, height='5dp'))
         btn_update = MDFillRoundFlatIconButton(text="Mise à jour de l'application", icon='cloud-download', md_bg_color=(0, 0.6, 0.8, 1), text_color=(1, 1, 1, 1), size_hint_x=1, on_release=lambda x: [self.dialog_ip.dismiss(), webbrowser.open('https://resto.magpro-soft.com/')])
         content.add_widget(btn_update)
-        self.dialog_ip = MDDialog(title='Configuration Serveur', type='custom', content_cls=content, buttons=[MDFlatButton(text='ANNULER', on_release=lambda x: self.dialog_ip.dismiss()), MDRaisedButton(text='ENREGISTRER', on_release=self.save_ip_settings)])
+        self.dialog_ip = MDDialog(title='Configuration Serveur', type='custom', content_cls=content, buttons=[MDFlatButton(text='ANNULER', on_release=lambda x: self.dialog_ip.dismiss()), MDRaisedButton(text='ENREGISTRER', md_bg_color=(0, 0.6, 0, 1), on_release=self.save_ip_settings)])
         self.dialog_ip.open()
 
     def save_ip_settings(self, instance):
         new_local = self.ip_field_dialog.text.strip()
         new_ext = self.ext_ip_field_dialog.text.strip()
+        server_pin = self.field_server_pin.text.strip()
         if new_local and (not DataValidator.validate_ip(new_local)):
             self.notify('IP Locale invalide', 'error')
             return
         self.local_server_ip = new_local
         self.external_server_ip = new_ext
-        self.store.put('config', ip=new_local, ext_ip=new_ext)
+        self.server_ip = new_local
+        self.active_server_ip = new_local
+        self.store.put('config', ip=new_local, ext_ip=new_ext, server_pin=server_pin)
         self.notify('Configuration sauvegardée', 'success')
         if self.dialog_ip:
             self.dialog_ip.dismiss()
-        self.server_ip = new_local
         if self.ws_manager:
             self.ws_manager.disconnect()
-        threading.Thread(target=self._run_socket_ping_logic, daemon=True).start()
+        from kivy.clock import Clock
+        Clock.schedule_once(lambda dt: self._run_socket_ping_logic(), 0)
         Clock.schedule_once(lambda dt: self.fetch_tables(manual=True), 0.5)
 
     def do_login(self, instance):
@@ -1415,6 +1480,8 @@ class RestaurantApp(MDApp):
             self.current_user_name = self.username_field.text.strip()
             self.store.put('user', name=self.current_user_name)
             self.store.put('session', logged_in=True, username=self.current_user_name)
+            current_pin = self.store.get('config').get('server_pin', '') if self.store.exists('config') else ''
+            self.store.put('config', ip=self.local_server_ip, ext_ip=self.external_server_ip, server_pin=current_pin)
             if 'token' in result:
                 self.auth_token = result['token']
                 self.token_expiry = datetime.now() + timedelta(minutes=self.TOKEN_LIFETIME)
@@ -1749,6 +1816,15 @@ class RestaurantApp(MDApp):
         self.toggle_reminder_button(show=is_seat_occupied)
 
     def update_prods(self, req, result):
+        if isinstance(result, dict):
+            if 'data' in result and isinstance(result['data'], list):
+                result = result['data']
+            elif 'products' in result and isinstance(result['products'], list):
+                result = result['products']
+            else:
+                result = list(result.values())
+        if not isinstance(result, list):
+            result = []
         if result and isinstance(result, list):
             result = [p for p in result if str(p.get('name', '')).strip().lower() != 'autre article']
         try:
@@ -1920,7 +1996,7 @@ class RestaurantApp(MDApp):
             offline_key = f"offline_{self.current_table['id']}_{self.current_seat}"
             self.offline_store.put(offline_key, order_data=data)
             total_price = sum((float(item['price']) * float(item['qty']) for item in self.cart))
-            self.notify(f'Sauvegardé Hors Ligne ({int(total_price)} DA', 'warning')
+            self.notify(f'Sauvegardé Hors Ligne ({int(total_price)} DA)', 'warning')
             self.cart = []
             self.update_cart_btn()
             self.go_back()
@@ -1973,6 +2049,7 @@ class RestaurantApp(MDApp):
 
         def on_sync_fail(req, err):
             logging.warning('Sync failed, will try later')
+            Clock.schedule_once(lambda dt: self.process_offline_queue(), 10)
         logging.info(f'Syncing order {key}...')
         UrlRequest(f'{self.api_base}/api/submit_order', req_body=json.dumps(order_data), req_headers={'Content-type': 'application/json'}, method='POST', on_success=on_sync_success, on_failure=on_sync_fail, on_error=on_sync_fail, timeout=10)
 
