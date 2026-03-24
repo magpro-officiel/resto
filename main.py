@@ -262,9 +262,13 @@ class WebSocketManager:
 
         def _run():
             from kivymd.app import MDApp
+            import time
+            import re
+            try:
+                websocket.setdefaulttimeout(10)
+            except:
+                pass
             while self.should_reconnect:
-                import re
-                import time
                 current_ip = self.server_ip
                 if re.search('[a-zA-Z]', current_ip):
                     clean_host = current_ip.replace('https://', '').replace('http://', '').strip('/')
@@ -279,11 +283,10 @@ class WebSocketManager:
                         ws_header.append(f'X-Server-PIN: {pin}')
                 try:
                     self.ws = websocket.WebSocketApp(ws_url, header=ws_header, on_open=self._on_open, on_message=self._on_message, on_error=self._on_error, on_close=self._on_close)
-                    self.ws.run_forever(ping_interval=30, ping_timeout=15)
-                    if self.should_reconnect:
-                        time.sleep(self.reconnect_delay)
+                    self.ws.run_forever(ping_interval=20, ping_timeout=10)
                 except Exception as e:
-                    logging.error(f'WS Connection error: {e}')
+                    logging.error(f'Erreur critique de connexion WS: {e}')
+                if self.should_reconnect:
                     time.sleep(self.reconnect_delay)
         self.thread = threading.Thread(target=_run, daemon=True)
         self.thread.start()
@@ -304,14 +307,21 @@ class WebSocketManager:
             logging.error(f'WS Message Error: {e}')
 
     def _on_error(self, ws, error):
-        logging.error(f'WS Error: {error}')
+        error_msg = str(error)
+        if '10060' in error_msg or 'timed out' in error_msg.lower():
+            logging.warning("Délai d'attente dépassé Reconnexion en cours...")
+        else:
+            logging.error(f'Erreur WebSocket: {error_msg}')
         self.connected = False
 
     def _on_close(self, ws, close_status_code, close_msg):
         self.connected = False
-        logging.info('WS Closed')
+        logging.info(f'Connexion WebSocket fermée. Code: {close_status_code}')
         if self.on_disconnect_callback:
-            Clock.schedule_once(lambda dt: self.on_disconnect_callback(), 0)
+            try:
+                Clock.schedule_once(lambda dt: self.on_disconnect_callback(), 0)
+            except:
+                pass
 
     def disconnect(self):
         self.should_reconnect = False
@@ -1261,16 +1271,18 @@ class RestaurantApp(MDApp):
             Clock.schedule_once(lambda dt: self._process_batch_data(batch_to_load, reset), 0)
 
     def _process_batch_data(self, batch, reset=False):
+        from concurrent.futures import ThreadPoolExecutor
+        import urllib.parse
         if not hasattr(self, 'image_executor'):
-            self.image_executor = ThreadPoolExecutor(max_workers=4)
+            self.image_executor = ThreadPoolExecutor(max_workers=5)
             self.active_downloads = set()
         rv_data = []
         for p in batch:
-            p_id = str(p.get('id'))
-            image_filename = p.get('image')
+            p_id = str(p.get('id', ''))
+            image_filename = p.get('image', '')
             full_image_url = ''
-            if image_filename:
-                safe_name = urllib.parse.quote(image_filename)
+            if image_filename and str(image_filename).strip() != '':
+                safe_name = urllib.parse.quote(str(image_filename))
                 real_url = f'{self.api_base}/api/images/{safe_name}'
                 cached_path = self.image_cache.get_cache_path(p_id, real_url)
                 if cached_path and os.path.exists(cached_path):
@@ -1279,7 +1291,7 @@ class RestaurantApp(MDApp):
                     if real_url not in self.active_downloads:
                         self.active_downloads.add(real_url)
                         self.image_executor.submit(self._cache_image_worker, real_url, p_id)
-            rv_data.append({'name_display': self.fix_text(p.get('name', '')), 'price_display': f"{int(float(p.get('price', 0)))} DA", 'image_url': full_image_url, 'product_id': p.get('id'), 'raw_data': p, 'selectable': True})
+            rv_data.append({'name_display': self.fix_text(p.get('name', '')), 'price_display': f"{int(float(p.get('price', 0)))} DA", 'image_url': full_image_url, 'product_id': p_id, 'raw_data': p, 'selectable': True})
         self._update_rv_data(rv_data, reset)
 
     def _cache_image_worker(self, url, product_id):
@@ -1289,51 +1301,72 @@ class RestaurantApp(MDApp):
             if not final_path:
                 return
             if os.path.exists(final_path):
+                from kivy.clock import Clock
                 Clock.schedule_once(lambda dt: self._update_image_on_ui(product_id, final_path), 0)
                 return
             temp_path = final_path + '.tmp'
-            headers = {'User-Agent': 'MagPro-App'}
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36', 'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8', 'Connection': 'keep-alive'}
             if self.store.exists('config'):
                 pin = self.store.get('config').get('server_pin', '')
                 if pin:
                     headers['X-Server-PIN'] = str(pin)
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=15) as response:
-                if response.status == 200:
-                    with open(temp_path, 'wb') as f:
-                        f.write(response.read())
-                    if os.path.exists(final_path):
-                        try:
-                            os.remove(final_path)
-                        except:
-                            pass
-                    os.rename(temp_path, final_path)
-                    current_file_name = os.path.basename(final_path)
-                    self.image_cache.clean_old_versions(product_id, current_file_name)
-                    Clock.schedule_once(lambda dt: self._update_image_on_ui(product_id, final_path), 0)
-        except Exception as e:
-            logging.error(f'Cache Worker Error: {e}')
-            if temp_path and os.path.exists(temp_path):
+            import ssl
+            import urllib.request
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            max_retries = 3
+            success = False
+            for attempt in range(max_retries):
+                try:
+                    req = urllib.request.Request(url, headers=headers)
+                    with urllib.request.urlopen(req, timeout=30, context=ctx) as response:
+                        if response.status == 200:
+                            with open(temp_path, 'wb') as f:
+                                f.write(response.read())
+                            if os.path.exists(final_path):
+                                try:
+                                    os.remove(final_path)
+                                except:
+                                    pass
+                            os.rename(temp_path, final_path)
+                            current_file_name = os.path.basename(final_path)
+                            self.image_cache.clean_old_versions(product_id, current_file_name)
+                            from kivy.clock import Clock
+                            Clock.schedule_once(lambda dt: self._update_image_on_ui(product_id, final_path), 0)
+                            success = True
+                            break
+                except Exception as e:
+                    import time
+                    time.sleep(2)
+            if not success and temp_path and os.path.exists(temp_path):
                 try:
                     os.remove(temp_path)
                 except:
                     pass
+        except Exception as e:
+            pass
         finally:
-            if url in self.active_downloads:
+            if url in getattr(self, 'active_downloads', set()):
                 self.active_downloads.remove(url)
 
     def _update_image_on_ui(self, product_id, image_path):
-        if not self.rv_products or not self.rv_products.data:
-            return
-        changed = False
-        for item in self.rv_products.data:
-            if item.get('product_id') == product_id:
-                if item['image_url'] != image_path:
-                    item['image_url'] = image_path
-                    changed = True
-                break
-        if changed:
-            self.rv_products.refresh_from_data()
+        try:
+            if not self.rv_products or not self.rv_products.data:
+                return
+            changed = False
+            new_data = list(self.rv_products.data)
+            for i, item in enumerate(new_data):
+                if str(item.get('product_id')) == str(product_id):
+                    if item.get('image_url') != image_path:
+                        new_data[i]['image_url'] = image_path
+                        changed = True
+                    break
+            if changed:
+                self.rv_products.data = new_data
+                self.rv_products.refresh_from_data()
+        except Exception as e:
+            pass
 
     @mainthread
     def _update_rv_data(self, rv_data, reset):
