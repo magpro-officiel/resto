@@ -31,6 +31,7 @@ from kivymd.uix.floatlayout import MDFloatLayout
 from kivymd.uix.gridlayout import MDGridLayout
 from kivymd.uix.label import MDLabel, MDIcon
 from kivymd.uix.list import MDList, OneLineListItem
+from kivymd.uix.pickers import MDDatePicker
 from kivymd.uix.screen import MDScreen
 from kivymd.uix.screenmanager import MDScreenManager
 from kivymd.uix.scrollview import MDScrollView
@@ -95,7 +96,7 @@ reshaper = arabic_reshaper.ArabicReshaper(configuration={'delete_harakat': True,
 # ==========================================
 DEFAULT_PORT = '5000'
 # ==========================================
-KV_BUILDER = '\n<ProductRecycleItem>:\n    orientation: \'vertical\'\n    size_hint_y: None\n    height: dp(195)  # زيادة بسيطة جداً لاستيعاب الخط الأكبر\n    padding: dp(2)\n    spacing: 0\n    canvas.before:\n        Color:\n            rgba: (0, 0, 0, 0)\n        RoundedRectangle:\n            pos: self.pos\n            size: self.size\n            radius: [12]\n\n    MDBoxLayout:\n        orientation: \'vertical\'\n        md_bg_color: (1, 1, 1, 1)\n        radius: [12]\n        spacing: 0\n        \n        MDRelativeLayout:\n            size_hint_y: 0.70  # توازن مثالي بين الصورة والنص\n            \n            FitImage:\n                id: product_img\n                source: root.image_source\n                radius: [12, 12, 0, 0]\n                mipmap: True\n                opacity: 1 if self.source else 0\n            \n            MDIcon:\n                icon: "food-outline"\n                theme_text_color: "Custom"\n                text_color: (0.9, 0.9, 0.9, 1)\n                font_size: "40sp"\n                pos_hint: {\'center_x\': .5, \'center_y\': .5}\n                opacity: 0.5 if not product_img.source else 0\n\n            MDCard:\n                size_hint: None, None\n                size: dp(75), dp(28)\n                pos_hint: {\'top\': 0.96, \'right\': 0.96}\n                radius: [8]\n                md_bg_color: (1, 0.85, 0, 0.95)\n                elevation: 1\n                MDLabel:\n                    text: root.text_price\n                    halign: \'center\'\n                    bold: True\n                    font_size: "14sp"\n                    font_name: \'ArabicFont\'\n\n        MDBoxLayout:\n            orientation: \'vertical\'\n            size_hint_y: 0.30\n            padding: [dp(4), dp(2), dp(4), dp(4)]\n            \n            MDLabel:\n                text: root.text_name\n                halign: \'center\'\n                valign: \'middle\'\n                bold: True\n                font_size: "17sp"      # تم تكبير الخط هنا\n                line_height: 0.9       # ضبط المسافة بين الأسطر لتناسب الخط الكبير\n                max_lines: 3\n                theme_text_color: "Primary"\n                font_name: \'ArabicFont\'\n                text_size: self.width, self.height\n\n<ProductRecycleView>:\n    viewclass: \'ProductRecycleItem\'\n    RecycleGridLayout:\n        cols: 2\n        default_size: None, dp(195) # يجب أن يطابق ارتفاع الـ Item\n        default_size_hint: 1, None\n        size_hint_y: None\n        height: self.minimum_height\n        spacing: dp(8)\n        padding: dp(8)\n        canvas.before:\n            Color:\n                rgba: (0.92, 0.92, 0.92, 1) \n            Rectangle:\n                pos: self.pos\n                size: self.size\n'
+KV_BUILDER = '\n<ProductRecycleItem>:\n    orientation: \'vertical\'\n    size_hint_y: None\n    height: dp(195)\n    padding: dp(2)\n    spacing: 0\n    canvas.before:\n        Color:\n            rgba: (0, 0, 0, 0)\n        RoundedRectangle:\n            pos: self.pos\n            size: self.size\n            radius: [12]\n\n    MDBoxLayout:\n        orientation: \'vertical\'\n        md_bg_color: (1, 1, 1, 1)\n        radius: [12]\n        spacing: 0\n        \n        MDRelativeLayout:\n            size_hint_y: 0.70\n            FitImage:\n                id: product_img\n                source: root.image_source\n                radius: [12, 12, 0, 0]\n                mipmap: True\n                opacity: 1 if self.source else 0\n            MDIcon:\n                icon: "food-outline"\n                theme_text_color: "Custom"\n                text_color: (0.9, 0.9, 0.9, 1)\n                font_size: "40sp"\n                pos_hint: {\'center_x\': .5, \'center_y\': .5}\n                opacity: 0.5 if not product_img.source else 0\n            MDCard:\n                size_hint: None, None\n                size: dp(75), dp(28)\n                pos_hint: {\'top\': 0.96, \'right\': 0.96}\n                radius: [8]\n                md_bg_color: (1, 0.85, 0, 0.95)\n                elevation: 1\n                MDLabel:\n                    text: root.text_price\n                    halign: \'center\'\n                    bold: True\n                    font_size: "14sp"\n                    font_name: \'ArabicFont\'\n\n        MDBoxLayout:\n            orientation: \'vertical\'\n            size_hint_y: 0.30\n            padding: [dp(4), dp(2), dp(4), dp(4)]\n            MDLabel:\n                text: root.text_name\n                halign: \'center\'\n                valign: \'middle\'\n                bold: True\n                font_size: "17sp"\n                line_height: 0.9\n                max_lines: 3\n                theme_text_color: "Primary"\n                font_name: \'ArabicFont\'\n                text_size: self.width, self.height\n\n<ProductRecycleView>:\n    viewclass: \'ProductRecycleItem\'\n    RecycleGridLayout:\n        cols: 2\n        default_size: None, dp(195)\n        default_size_hint: 1, None\n        size_hint_y: None\n        height: self.minimum_height\n        spacing: dp(8)\n        padding: dp(8)\n        canvas.before:\n            Color:\n                rgba: (0.92, 0.92, 0.92, 1) \n            Rectangle:\n                pos: self.pos\n                size: self.size\n\n<AdminDashboardScreen@MDScreen>:\n    name: \'admin_dashboard\'\n    md_bg_color: 0.96, 0.96, 0.98, 1  \n\n    MDBoxLayout:\n        orientation: \'vertical\'\n        \n        MDTopAppBar:\n            title: "Tableau de Bord"\n            right_action_items: [[\'refresh\', lambda x: app.fetch_admin_stats()], [\'logout\', lambda x: app.confirm_logout()]]\n            elevation: 2\n            md_bg_color: app.theme_cls.primary_color\n        \n\n        MDBoxLayout:\n            size_hint_y: None\n            height: dp(80)\n            padding: [dp(15), dp(10), dp(15), dp(10)]\n            \n            MDCard:\n                orientation: \'horizontal\'\n                padding: [dp(10), dp(5), dp(10), dp(5)]\n                spacing: dp(10)\n                radius: [15]\n                elevation: 1\n                md_bg_color: 1, 1, 1, 1\n                \n                MDBoxLayout:\n                    orientation: \'horizontal\'\n                    size_hint_x: 0.45\n                    spacing: dp(8)\n                    pos_hint: {\'center_y\': 0.5}\n                    \n                    MDFillRoundFlatButton:\n                        id: btn_today\n                        text: "Aujourd\'hui"\n                        font_size: "13sp"\n                        md_bg_color: app.theme_cls.primary_color\n                        text_color: 1, 1, 1, 1\n                        on_release: app.set_admin_date_filter(\'today\')\n                        \n                    MDFillRoundFlatButton:\n                        id: btn_yesterday\n                        text: "Hier"\n                        font_size: "13sp"\n                        md_bg_color: 0.9, 0.9, 0.9, 1\n                        text_color: 0.4, 0.4, 0.4, 1\n                        on_release: app.set_admin_date_filter(\'yesterday\')\n                        \n                MDBoxLayout:\n                    orientation: \'horizontal\'\n                    size_hint_x: 0.55\n                    spacing: dp(5)\n                    pos_hint: {\'center_y\': 0.5}\n                    \n                    MDLabel:\n                        id: date_lbl\n                        text: "Aujourd\'hui"\n                        halign: "right"\n                        valign: "center"\n                        font_size: "12sp"\n                        bold: True\n                        theme_text_color: "Secondary"\n                        \n                    MDIconButton:\n                        icon: "calendar-range"\n                        theme_text_color: "Custom"\n                        text_color: app.theme_cls.primary_color\n                        pos_hint: {\'center_y\': 0.5}\n                        on_release: app.show_date_picker()\n\n\n        MDScrollView:\n            MDGridLayout:\n                cols: 2\n                padding: [dp(15), dp(5), dp(15), dp(15)]\n                spacing: dp(15)\n                adaptive_height: True\n\n             \n                MDCard:\n                    orientation: \'vertical\'\n                    padding: dp(10)\n                    size_hint_y: None\n                    height: dp(120)\n                    radius: [12]\n                    elevation: 1\n                    md_bg_color: 1, 1, 1, 1\n                    MDIcon:\n                        icon: "table-chair"\n                        halign: "center"\n                        font_size: "32sp"\n                        theme_text_color: "Custom"\n                        text_color: 0.8, 0.2, 0.2, 1\n                    MDLabel:\n                        text: "Tables Occupées"\n                        halign: "center"\n                        font_size: "14sp"\n                        bold: True\n                    MDLabel:\n                        id: lbl_tables\n                        text: "0"\n                        halign: "center"\n                        font_size: "22sp"\n                        bold: True\n                        theme_text_color: "Primary"\n\n                MDCard:\n                    orientation: \'vertical\'\n                    padding: dp(10)\n                    size_hint_y: None\n                    height: dp(120)\n                    radius: [12]\n                    elevation: 1\n                    md_bg_color: 1, 1, 1, 1\n                    MDIcon:\n                        icon: "cash-register"\n                        halign: "center"\n                        font_size: "32sp"\n                        theme_text_color: "Custom"\n                        text_color: 0.2, 0.6, 0.2, 1\n                    MDLabel:\n                        text: "Total Caisse"\n                        halign: "center"\n                        font_size: "14sp"\n                        bold: True\n                    MDLabel:\n                        id: lbl_caisse\n                        text: "0 DA"\n                        halign: "center"\n                        font_size: "18sp"\n                        bold: True\n\n        \n                MDCard:\n                    orientation: \'vertical\'\n                    padding: dp(10)\n                    size_hint_y: None\n                    height: dp(120)\n                    radius: [12]\n                    elevation: 1\n                    md_bg_color: 1, 1, 1, 1\n                    MDIcon:\n                        icon: "food-takeout-box"\n                        halign: "center"\n                        font_size: "32sp"\n                        theme_text_color: "Custom"\n                        text_color: 0.2, 0.6, 0.8, 1\n                    MDLabel:\n                        text: "Ventes Rapides"\n                        halign: "center"\n                        font_size: "14sp"\n                        bold: True\n                    MDLabel:\n                        id: lbl_bv\n                        text: "0 DA"\n                        halign: "center"\n                        font_size: "18sp"\n                        bold: True\n\n                MDCard:\n                    orientation: \'vertical\'\n                    padding: dp(10)\n                    size_hint_y: None\n                    height: dp(120)\n                    radius: [12]\n                    elevation: 1\n                    md_bg_color: 1, 1, 1, 1\n                    MDIcon:\n                        icon: "silverware-fork-knife"\n                        halign: "center"\n                        font_size: "32sp"\n                        theme_text_color: "Custom"\n                        text_color: 0.1, 0.4, 0.7, 1\n                    MDLabel:\n                        text: "Chiffre Tables"\n                        halign: "center"\n                        font_size: "14sp"\n                        bold: True\n                    MDLabel:\n                        id: lbl_bt\n                        text: "0 DA"\n                        halign: "center"\n                        font_size: "18sp"\n                        bold: True\n\n    \n                MDCard:\n                    orientation: \'vertical\'\n                    padding: dp(10)\n                    size_hint_y: None\n                    height: dp(120)\n                    radius: [12]\n                    elevation: 1\n                    md_bg_color: 1, 1, 1, 1\n                    MDIcon:\n                        icon: "chart-line"\n                        halign: "center"\n                        font_size: "32sp"\n                        theme_text_color: "Custom"\n                        text_color: 0.8, 0.6, 0.1, 1\n                    MDLabel:\n                        text: "Bénéfice Net"\n                        halign: "center"\n                        font_size: "14sp"\n                        bold: True\n                    MDLabel:\n                        id: lbl_profit\n                        text: "0 DA"\n                        halign: "center"\n                        font_size: "18sp"\n                        bold: True\n\n                MDCard:\n                    orientation: \'vertical\'\n                    padding: dp(10)\n                    size_hint_y: None\n                    height: dp(120)\n                    radius: [12]\n                    elevation: 1\n                    md_bg_color: 1, 1, 1, 1\n                    MDIcon:\n                        icon: "cart-arrow-up"\n                        halign: "center"\n                        font_size: "32sp"\n                        theme_text_color: "Custom"\n                        text_color: 0.8, 0.3, 0.1, 1\n                    MDLabel:\n                        text: "Dépenses (Frais)"\n                        halign: "center"\n                        font_size: "14sp"\n                        bold: True\n                    MDLabel:\n                        id: lbl_depenses\n                        text: "0 DA"\n                        halign: "center"\n                        font_size: "18sp"\n                        bold: True\n\n\n                MDCard:\n                    orientation: \'vertical\'\n                    padding: dp(10)\n                    size_hint_y: None\n                    height: dp(120)\n                    radius: [12]\n                    elevation: 1\n                    md_bg_color: 1, 1, 1, 1\n                    MDIcon:\n                        icon: "account-clock"\n                        halign: "center"\n                        font_size: "32sp"\n                        theme_text_color: "Custom"\n                        text_color: 0.7, 0.2, 0.2, 1\n                    MDLabel:\n                        text: "Créances Clients"\n                        halign: "center"\n                        font_size: "14sp"\n                        bold: True\n                    MDLabel:\n                        id: lbl_debts_c\n                        text: "0 DA"\n                        halign: "center"\n                        font_size: "18sp"\n                        bold: True\n\n                MDCard:\n                    orientation: \'vertical\'\n                    padding: dp(10)\n                    size_hint_y: None\n                    height: dp(120)\n                    radius: [12]\n                    elevation: 1\n                    md_bg_color: 1, 1, 1, 1\n                    MDIcon:\n                        icon: "truck-delivery"\n                        halign: "center"\n                        font_size: "32sp"\n                        theme_text_color: "Custom"\n                        text_color: 0.3, 0.3, 0.3, 1\n                    MDLabel:\n                        text: "Dettes Fournisseurs"\n                        halign: "center"\n                        font_size: "14sp"\n                        bold: True\n                    MDLabel:\n                        id: lbl_debts_s\n                        text: "0 DA"\n                        halign: "center"\n                        font_size: "18sp"\n                        bold: True\n'
 # ==========================================
 class CustomUrlRequest(OriginalUrlRequest):
 
@@ -615,6 +616,8 @@ class RestaurantApp(MDApp):
     btn_reminder = None
     cart_area = None
     data_dir = ''
+    admin_start_date = None
+    admin_end_date = None
     rv_products = None
 
     @property
@@ -636,6 +639,119 @@ class RestaurantApp(MDApp):
             return bidi_text
         except:
             return str(text)
+
+    def show_date_picker(self):
+        try:
+            import locale
+            import platform
+            try:
+                if platform.system() == 'Windows':
+                    locale.setlocale(locale.LC_ALL, 'fra_fra')
+                else:
+                    locale.setlocale(locale.LC_ALL, 'fr_FR.UTF-8')
+            except:
+                pass
+            from kivymd.uix.pickers import MDDatePicker
+            date_dialog = MDDatePicker(mode='range')
+            date_dialog.bind(on_save=self.on_date_save)
+            date_dialog.open()
+        except Exception as e:
+            self.notify(f'Erreur Calendrier: {str(e)}', 'error')
+            print(f'Date Picker Error: {e}')
+
+    def on_date_save(self, instance, value, date_range):
+        if date_range:
+            self.admin_start_date = date_range[0].strftime('%Y-%m-%d')
+            self.admin_end_date = date_range[-1].strftime('%Y-%m-%d')
+        else:
+            self.admin_start_date = value.strftime('%Y-%m-%d')
+            self.admin_end_date = value.strftime('%Y-%m-%d')
+        self.admin_screen.ids.date_lbl.text = f'{self.admin_start_date} au {self.admin_end_date}'
+        self._reset_filter_buttons()
+        self.fetch_admin_stats(show_notification=True)
+
+    def set_admin_date_filter(self, filter_type):
+        if filter_type == 'today':
+            self.admin_start_date = datetime.now().strftime('%Y-%m-%d')
+            self.admin_end_date = self.admin_start_date
+            self.admin_screen.ids.date_lbl.text = "Aujourd'hui"
+            self._set_active_filter_button(self.admin_screen.ids.btn_today, self.admin_screen.ids.btn_yesterday)
+        elif filter_type == 'yesterday':
+            yest = datetime.now() - timedelta(days=1)
+            self.admin_start_date = yest.strftime('%Y-%m-%d')
+            self.admin_end_date = self.admin_start_date
+            self.admin_screen.ids.date_lbl.text = 'Hier'
+            self._set_active_filter_button(self.admin_screen.ids.btn_yesterday, self.admin_screen.ids.btn_today)
+        self.fetch_admin_stats(show_notification=True)
+
+    def _set_active_filter_button(self, active_btn, inactive_btn):
+        active_btn.md_bg_color = self.theme_cls.primary_color
+        active_btn.text_color = (1, 1, 1, 1)
+        inactive_btn.md_bg_color = (0.9, 0.9, 0.9, 1)
+        inactive_btn.text_color = (0.4, 0.4, 0.4, 1)
+
+    def _reset_filter_buttons(self):
+        self.admin_screen.ids.btn_today.md_bg_color = (0.9, 0.9, 0.9, 1)
+        self.admin_screen.ids.btn_today.text_color = (0.4, 0.4, 0.4, 1)
+        self.admin_screen.ids.btn_yesterday.md_bg_color = (0.9, 0.9, 0.9, 1)
+        self.admin_screen.ids.btn_yesterday.text_color = (0.4, 0.4, 0.4, 1)
+
+    def start_admin_auto_refresh(self):
+        self.stop_admin_auto_refresh()
+        self.fetch_admin_stats(show_notification=True)
+        self._admin_refresh_event = Clock.schedule_interval(self.fetch_admin_stats_silent, 15)
+
+    def stop_admin_auto_refresh(self):
+        if hasattr(self, '_admin_refresh_event') and self._admin_refresh_event:
+            self._admin_refresh_event.cancel()
+            self._admin_refresh_event = None
+
+    def fetch_admin_stats_silent(self, dt=None):
+        self.fetch_admin_stats(show_notification=False)
+
+    def fetch_admin_stats(self, show_notification=True):
+        if show_notification:
+            self.notify('Actualisation des données...', 'info')
+        if not getattr(self, 'admin_start_date', None) or not getattr(self, 'admin_end_date', None):
+            self.admin_start_date = datetime.now().strftime('%Y-%m-%d')
+            self.admin_end_date = self.admin_start_date
+        url = f'{self.api_base}/api/admin_stats?start_date={self.admin_start_date}&end_date={self.admin_end_date}'
+
+        def format_dz(amount):
+            try:
+                return '{:,.0f} DA'.format(float(amount)).replace(',', ' ')
+            except:
+                return '0 DA'
+
+        def on_success(req, result):
+            if result.get('status') == 'success':
+                data = result.get('data', {})
+                self.admin_screen.ids.lbl_tables.text = str(data.get('occupied_tables', 0))
+                self.admin_screen.ids.lbl_caisse.text = format_dz(data.get('total_caisse', 0))
+                self.admin_screen.ids.lbl_bv.text = format_dz(data.get('bv_total', 0))
+                self.admin_screen.ids.lbl_bt.text = format_dz(data.get('bt_total', 0))
+                self.admin_screen.ids.lbl_profit.text = format_dz(data.get('profit_total', 0))
+                if float(data.get('profit_total', 0)) < 0:
+                    self.admin_screen.ids.lbl_profit.theme_text_color = 'Error'
+                else:
+                    self.admin_screen.ids.lbl_profit.theme_text_color = 'Custom'
+                    self.admin_screen.ids.lbl_profit.text_color = (0.1, 0.6, 0.1, 1)
+                self.admin_screen.ids.lbl_depenses.text = format_dz(data.get('depenses', 0))
+                if 'lbl_encaissement' in self.admin_screen.ids:
+                    self.admin_screen.ids.lbl_encaissement.text = format_dz(data.get('total_encaissement', 0))
+                if 'lbl_decaissement' in self.admin_screen.ids:
+                    self.admin_screen.ids.lbl_decaissement.text = format_dz(data.get('total_decaissement', 0))
+                self.admin_screen.ids.lbl_debts_c.text = format_dz(data.get('customer_debts', 0))
+                self.admin_screen.ids.lbl_debts_s.text = format_dz(data.get('supplier_debts', 0))
+                if show_notification:
+                    self.notify('Données mises à jour', 'success')
+            elif show_notification:
+                self.notify('Erreur serveur', 'error')
+
+        def on_error(req, error):
+            if show_notification:
+                self.notify('Erreur de connexion', 'error')
+        UrlRequest(url, method='GET', on_success=on_success, on_failure=on_error, on_error=on_error, timeout=10)
 
     def get_device_id(self):
         from kivy.utils import platform
@@ -724,9 +840,14 @@ class RestaurantApp(MDApp):
                 session = self.store.get('session')
                 if session.get('logged_in'):
                     self.current_user_name = session.get('username', 'ADMIN')
-                    self.screen_manager.current = 'tables'
-                    self.fetch_tables()
-                    self.start_refresh()
+                    self.current_user_role = session.get('role', '')
+                    if self.current_user_role in ['مدير', 'Admin', 'Manager']:
+                        self.screen_manager.current = 'admin_dashboard'
+                        self.start_admin_auto_refresh()
+                    else:
+                        self.screen_manager.current = 'tables'
+                        self.fetch_tables()
+                        self.start_refresh()
         except:
             pass
 
@@ -752,7 +873,7 @@ class RestaurantApp(MDApp):
 
         def on_fail_or_error(req, err):
             self._ping_external()
-        UrlRequest(url, on_success=on_success, on_failure=on_fail_or_error, on_error=on_fail_or_error, timeout=2)
+        UrlRequest(url, on_success=on_success, on_failure=on_fail_or_error, on_error=on_fail_or_error, timeout=5)
 
     def _ping_external(self):
         if not self.external_server_ip:
@@ -774,7 +895,7 @@ class RestaurantApp(MDApp):
             if req.resp_status == 403:
                 self.notify('Code PIN du Serveur Incorrect!', 'error')
             self._finalize_ping_ui(False, 0, None)
-        UrlRequest(url, on_success=on_success, on_failure=on_fail_or_error, on_error=on_fail_or_error, timeout=4)
+        UrlRequest(url, on_success=on_success, on_failure=on_fail_or_error, on_error=on_fail_or_error, timeout=7)
 
     def _finalize_ping_ui(self, success, ping_val, confirmed_ip):
         self.is_server_reachable = success
@@ -854,8 +975,7 @@ class RestaurantApp(MDApp):
             self.server_ip = self.local_server_ip
         if self.store.exists('user'):
             self.current_user_name = self.store.get('user')['name']
-        self.ws_manager = WebSocketManager(self.server_ip, DEFAULT_PORT, self.on_websocket_message, on_connect_callback=lambda: self.notify('Connecté au serveur', 'info'), on_disconnect_callback=lambda: self.notify('Connexion au serveur perdue', 'error'))
-        self.available_categories = ['Tout']
+        self.ws_manager = WebSocketManager(self.server_ip, DEFAULT_PORT, self.on_websocket_message)
         root_layout = MDBoxLayout(orientation='vertical')
         self.screen_manager = MDScreenManager()
         root_layout.add_widget(self.screen_manager)
@@ -922,6 +1042,9 @@ class RestaurantApp(MDApp):
         layout_o.add_widget(self.cart_area)
         screen_order.add_widget(layout_o)
         self.screen_manager.add_widget(screen_order)
+        from kivy.factory import Factory
+        self.admin_screen = Factory.AdminDashboardScreen()
+        self.screen_manager.add_widget(self.admin_screen)
         Clock.schedule_once(lambda dt: self.ws_manager.connect(), 1)
         Window.bind(size=self.update_orientation_layout)
         Clock.schedule_once(lambda dt: self.update_orientation_layout(Window, Window.size), 1)
@@ -1464,6 +1587,10 @@ class RestaurantApp(MDApp):
         Clock.schedule_once(lambda dt: self._run_socket_ping_logic(), 0)
         Clock.schedule_once(lambda dt: self.fetch_tables(manual=True), 0.5)
 
+    def perform_logout(self, dialog):
+        dialog.dismiss()
+        self.logout()
+
     def do_login(self, instance):
         username = self.username_field.get_value().strip()
         password = self.password_field.get_value().strip()
@@ -1473,40 +1600,42 @@ class RestaurantApp(MDApp):
         url = f'{self.api_base}/api/login'
         headers = {'Content-type': 'application/json'}
         body = json.dumps({'username': username, 'password': password})
-        UrlRequest(url, req_body=body, req_headers=headers, method='POST', on_success=self.login_success_handler, on_failure=lambda r, e: self.notify('Identifiants incorrects', 'error'), on_error=lambda r, e: self.standard_error_handler(r, e, 'Serveur de connexion inaccessible.'), timeout=10)
+        UrlRequest(url, req_body=body, req_headers=headers, method='POST', on_success=self.login_success_handler, on_failure=lambda r, e: self.notify('Identifiants incorrects', 'error'), on_error=lambda r, e: self.standard_error_handler(r, e, 'Serveur inaccessible.'), timeout=10)
 
     def login_success_handler(self, req, result):
         if result.get('status') == 'success':
             self.current_user_name = self.username_field.text.strip()
-            self.store.put('user', name=self.current_user_name)
-            self.store.put('session', logged_in=True, username=self.current_user_name)
+            self.current_user_role = result.get('role', '')
+            self.store.put('user', name=self.current_user_name, role=self.current_user_role)
+            self.store.put('session', logged_in=True, username=self.current_user_name, role=self.current_user_role)
             current_pin = self.store.get('config').get('server_pin', '') if self.store.exists('config') else ''
             self.store.put('config', ip=self.local_server_ip, ext_ip=self.external_server_ip, server_pin=current_pin)
             if 'token' in result:
                 self.auth_token = result['token']
                 self.token_expiry = datetime.now() + timedelta(minutes=self.TOKEN_LIFETIME)
-            self.notify(f'Authentification réussie {self.current_user_name}', 'success')
-            self.screen_manager.current = 'tables'
-            self.fetch_tables()
-            self.start_refresh()
+            self.notify(f'Bienvenue {self.current_user_name}', 'success')
+            if self.current_user_role in ['مدير', 'Admin', 'Manager']:
+                self.screen_manager.current = 'admin_dashboard'
+                self.start_admin_auto_refresh()
+            else:
+                self.screen_manager.current = 'tables'
+                self.fetch_tables()
+                self.start_refresh()
         else:
             self.notify('Échec de la connexion', 'error')
+
+    def logout(self):
+        self.stop_refresh()
+        self.stop_admin_auto_refresh()
+        if self.store.exists('session'):
+            self.store.put('session', logged_in=False, username=self.current_user_name, role='')
+        self.screen_manager.current = 'login'
+        self.password_field.text = ''
+        self.notify('Déconnecté avec succès', 'info')
 
     def confirm_logout(self):
         dialog = MDDialog(title='Déconnexion', text='Voulez-vous vraiment vous déconnecter ?', buttons=[MDFlatButton(text='ANNULER', on_release=lambda x: dialog.dismiss()), MDRaisedButton(text='DÉCONNEXION', md_bg_color=(0.8, 0, 0, 1), on_release=lambda x: self.perform_logout(dialog))])
         dialog.open()
-
-    def perform_logout(self, dialog):
-        dialog.dismiss()
-        self.logout()
-
-    def logout(self):
-        self.stop_refresh()
-        if self.store.exists('session'):
-            self.store.put('session', logged_in=False, username=self.current_user_name)
-        self.screen_manager.current = 'login'
-        self.password_field.text = ''
-        self.notify('Déconnecté', 'info')
 
     def start_refresh(self):
         self.stop_refresh()
